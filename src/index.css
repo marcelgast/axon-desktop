@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent text selection on UI chrome */
+body {
+  @apply select-none bg-axon-900 text-white antialiased;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Allow selection inside content areas */
+.selectable { @apply select-text; }
+
+.btn-primary {
+  @apply bg-axon-500 hover:bg-axon-600 text-white font-medium
+         px-5 py-2.5 rounded-lg transition-colors;
+}
+.btn-secondary {
+  @apply bg-zinc-700 hover:bg-zinc-600 text-white font-medium
+         px-5 py-2.5 rounded-lg transition-colors;
+}

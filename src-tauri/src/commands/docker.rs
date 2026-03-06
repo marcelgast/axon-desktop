@@ -106,6 +106,39 @@ pub fn stop_axon(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+/// Check whether the Axon HTTP service is ready to accept connections.
+///
+/// Tries the Docker health filter first (no network needed — fast).
+/// Falls back to a TCP connect attempt for images without a healthcheck.
+/// Running this check in Rust avoids browser CORS restrictions.
+#[tauri::command]
+pub fn check_axon_health() -> bool {
+    is_any_service_healthy() || port_is_open(3000) || port_is_open(8000)
+}
+
+/// Returns true if at least one `axon-*` container reports health=healthy.
+fn is_any_service_healthy() -> bool {
+    Command::new("docker")
+        .args([
+            "ps",
+            "--filter", "name=axon-",
+            "--filter", "health=healthy",
+            "--format", "{{.Names}}",
+        ])
+        .output()
+        .ok()
+        .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        .unwrap_or(false)
+}
+
+/// Returns true if the given localhost port accepts a TCP connection.
+fn port_is_open(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_secs(1)).is_ok()
+}
+
 /// Query running Axon containers.
 #[tauri::command]
 pub fn get_axon_status() -> AxonStatus {

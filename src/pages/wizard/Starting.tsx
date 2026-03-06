@@ -29,23 +29,12 @@ export function Starting({ onReady }: Props) {
     }
   }
 
-  /** Try both port 3000 (production single image) and 8000 (dev master). */
-  async function isAxonHealthy(): Promise<boolean> {
-    for (const port of [3000, 8000]) {
-      try {
-        const res = await fetch(`http://localhost:${port}/health`);
-        if (res.ok) return true;
-      } catch {
-        // not ready on this port yet
-      }
-    }
-    return false;
-  }
-
   // Allow up to 3 minutes — first run needs to pull the Docker image.
+  // Health check runs in Rust to avoid browser CORS restrictions.
   async function waitForAxon(attempts = 0): Promise<void> {
     if (attempts > 90) throw new Error("Axon did not start within 3 minutes.");
-    if (await isAxonHealthy()) return;
+    const healthy = await invoke<boolean>("check_axon_health");
+    if (healthy) return;
     await new Promise((r) => setTimeout(r, 2000));
     return waitForAxon(attempts + 1);
   }

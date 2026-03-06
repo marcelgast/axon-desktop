@@ -1,17 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useAxonStatus } from "../hooks/useAxonStatus";
+import { StatsBar } from "../components/StatsBar";
 import { StatusBadge } from "../components/StatusBadge";
+import { useAxonStatus } from "../hooks/useAxonStatus";
+import { useContainerStats } from "../hooks/useContainerStats";
 
 const AXON_URL = "http://localhost:3000";
 
 /** Main dashboard view — shows the Axon web UI in an iframe after setup. */
 export function Dashboard() {
   const { status } = useAxonStatus();
+  const state = status?.state ?? "checking";
+  const running = state === "running";
+
+  const stats = useContainerStats(running);
 
   const handleStop = () => invoke("stop_axon");
   const handleStart = () => invoke("start_axon");
-
-  const state = status?.state ?? "checking";
 
   return (
     <div className="flex flex-col h-screen">
@@ -20,12 +24,18 @@ export function Dashboard() {
         <span className="text-sm font-medium text-zinc-200">Axon</span>
         <div className="flex items-center gap-4">
           <StatusBadge state={state} />
-          {state === "running" ? (
-            <button onClick={handleStop} className="text-xs text-zinc-400 hover:text-white transition-colors">
+          {running ? (
+            <button
+              onClick={handleStop}
+              className="text-xs text-zinc-400 hover:text-white transition-colors"
+            >
               Stop
             </button>
           ) : (
-            <button onClick={handleStart} className="text-xs text-zinc-400 hover:text-white transition-colors">
+            <button
+              onClick={handleStart}
+              className="text-xs text-zinc-400 hover:text-white transition-colors"
+            >
               Start
             </button>
           )}
@@ -33,7 +43,7 @@ export function Dashboard() {
       </div>
 
       {/* Axon dashboard in iframe */}
-      {state === "running" ? (
+      {running ? (
         <iframe
           src={AXON_URL}
           className="flex-1 w-full border-0 bg-white"
@@ -49,6 +59,9 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Per-container CPU + memory — visible only when running */}
+      <StatsBar stats={stats} />
     </div>
   );
 }

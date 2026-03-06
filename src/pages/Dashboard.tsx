@@ -16,7 +16,7 @@ export function Dashboard() {
   return (
     <div className="flex flex-col h-screen">
       {/* Thin toolbar */}
-      <div className="flex items-center justify-between px-4 h-9 bg-zinc-900 border-b border-zinc-800 shrink-0">
+      <div className="flex items-center justify-between px-4 h-9 bg-axon-800 border-b border-axon-line shrink-0">
         <span className="text-sm font-medium text-zinc-200">Axon</span>
         <div className="flex items-center gap-4">
           <StatusBadge state={state} />

@@ -29,14 +29,23 @@ export function Starting({ onReady }: Props) {
     }
   }
 
-  async function waitForAxon(attempts = 0): Promise<void> {
-    if (attempts > 30) throw new Error("Axon did not start within 60 seconds.");
-    try {
-      const res = await fetch("http://localhost:3000/health");
-      if (res.ok) return;
-    } catch {
-      // not ready yet
+  /** Try both port 3000 (production single image) and 8000 (dev master). */
+  async function isAxonHealthy(): Promise<boolean> {
+    for (const port of [3000, 8000]) {
+      try {
+        const res = await fetch(`http://localhost:${port}/health`);
+        if (res.ok) return true;
+      } catch {
+        // not ready on this port yet
+      }
     }
+    return false;
+  }
+
+  // Allow up to 3 minutes — first run needs to pull the Docker image.
+  async function waitForAxon(attempts = 0): Promise<void> {
+    if (attempts > 90) throw new Error("Axon did not start within 3 minutes.");
+    if (await isAxonHealthy()) return;
     await new Promise((r) => setTimeout(r, 2000));
     return waitForAxon(attempts + 1);
   }

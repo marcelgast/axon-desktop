@@ -1,5 +1,5 @@
 [package]
-name = "axon-desktop"
+name = "axon"
 version = "0.1.0"
 description = "Axon Desktop — secure AI agent orchestration"
 authors = ["Marcel Gast"]

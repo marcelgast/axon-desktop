@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "AXON_COMPOSE_PATH=$(cd ../axon && pwd)/docker-compose.yml npm run tauri -- dev",
+    "docker:build": "docker build -t ghcr.io/marcelgast/axon:latest $(cd ../axon && pwd)"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

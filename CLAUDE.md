@@ -103,16 +103,38 @@ Same principles as `marcelgast/axon` (see that repo's CLAUDE.md). Summarised:
 
 ## Development
 
+Both `axon` and `axon-desktop` must be checked out as siblings:
+```
+~/Projekte/
+├── axon/           ← open-source backend + dashboard
+└── axon-desktop/   ← this repo
+```
+
 ```bash
 # Install dependencies
 npm install
 
-# Run in dev mode (Vite + Tauri hot reload)
-npm run tauri dev
+# --- Local dev (uses the axon repo's docker-compose.yml directly) ---
+
+# Option A — one-liner that sets AXON_COMPOSE_PATH automatically:
+npm run tauri:dev
+
+# Option B — build the production Docker image locally first, then use
+#             the normal tauri dev command:
+npm run docker:build   # builds ghcr.io/marcelgast/axon:latest from ../axon
+npm run tauri dev      # the bundled compose finds the local image
 
 # Build production binary
 npm run tauri build
 ```
+
+### How the Docker compose path is resolved (docker.rs)
+
+| Situation | Compose file used |
+|---|---|
+| `AXON_COMPOSE_PATH` env var set | that path |
+| Production binary (installed app) | bundled `resources/docker-compose.yml` |
+| `npm run tauri:dev` | `../axon/docker-compose.yml` (set automatically) |
 
 Requires: Rust + Cargo, Node.js 20+, Docker (to test the Docker check).
 

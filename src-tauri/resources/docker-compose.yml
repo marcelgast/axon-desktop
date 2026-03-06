@@ -13,7 +13,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      - SECRET_KEY=${SECRET_KEY:-please-set-a-real-secret-key}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - AXON_DEPLOY_MODE=desktop
     volumes:
       - axon-data:/data

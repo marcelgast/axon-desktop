@@ -223,6 +223,25 @@ fn list_compose_container_ids(compose_path: &str) -> Result<Vec<String>, String>
         .and_then(parse_compose_ps_output)
 }
 
+/// Like `list_compose_container_ids` but only returns IDs of containers
+/// whose status is `running`. Used by the stats command so that exited or
+/// restarting containers don't cause `docker stats` to stall or error out.
+fn list_running_compose_container_ids(compose_path: &str) -> Result<Vec<String>, String> {
+    Command::new("docker")
+        .args([
+            "compose",
+            "-f",
+            compose_path,
+            "ps",
+            "-q",
+            "--status",
+            "running",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to list running compose containers: {e}"))
+        .and_then(parse_compose_ps_output)
+}
+
 fn parse_compose_ps_output(output: std::process::Output) -> Result<Vec<String>, String> {
     parse_compose_ps_fields(
         output.status.success(),
@@ -373,7 +392,9 @@ pub fn get_container_stats(app: tauri::AppHandle) -> Vec<ContainerStat> {
         Err(_) => return vec![],
     };
 
-    let ids = match list_compose_container_ids(&compose_path) {
+    // Only query running containers — exited/restarting containers cause
+    // `docker stats` to stall waiting for a container that never responds.
+    let ids = match list_running_compose_container_ids(&compose_path) {
         Ok(ids) if !ids.is_empty() => ids,
         _ => return vec![],
     };
@@ -393,6 +414,13 @@ fn fetch_stats_for_containers(ids: &[String]) -> Vec<ContainerStat> {
         Ok(o) => o,
         Err(_) => return vec![],
     };
+
+    // A non-zero exit means docker stats could not query at least one container
+    // (e.g. it exited between the ps and stats calls). Return empty rather than
+    // showing partial or misleading data.
+    if !output.status.success() {
+        return vec![];
+    }
 
     String::from_utf8_lossy(&output.stdout)
         .lines()

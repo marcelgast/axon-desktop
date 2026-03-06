@@ -53,7 +53,7 @@ const PROVIDERS: Provider[] = [
   {
     id: "ollama",
     label: "Ollama (local)",
-    type: "ollama",
+    type: "custom",
     placeholder: "http://localhost:11434",
     baseUrl: "http://localhost:11434",
     isLocal: true,

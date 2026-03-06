@@ -48,7 +48,7 @@ pub async fn create_llm_provider(
 ) -> Result<(), String> {
     let client = reqwest::Client::new();
     client
-        .post(format!("{}/api/llm-providers", AXON_URL))
+        .post(format!("{}/api/llm/providers", AXON_URL))
         .json(&LlmProviderPayload {
             name,
             provider_type,

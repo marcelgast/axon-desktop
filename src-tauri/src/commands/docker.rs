@@ -7,6 +7,7 @@
 use std::process::Command;
 
 use serde::Serialize;
+use tauri::Manager;
 
 #[derive(Serialize)]
 pub struct DockerStatus {
@@ -52,11 +53,32 @@ fn is_docker_running() -> bool {
         .unwrap_or(false)
 }
 
+/// Resolve the path to the bundled docker-compose.yml.
+///
+/// In dev mode, `AXON_COMPOSE_PATH` env var overrides the default so you
+/// can point at the axon repo's compose file without packaging it.
+/// In production the compose file is bundled alongside the binary.
+fn resolve_compose_path(app: &tauri::AppHandle) -> Result<String, String> {
+    if let Ok(path) = std::env::var("AXON_COMPOSE_PATH") {
+        return Ok(path);
+    }
+
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Cannot locate resource directory: {e}"))?;
+
+    let compose = resource_dir.join("docker-compose.yml");
+    Ok(compose.to_string_lossy().into_owned())
+}
+
 /// Start the Axon stack via `docker compose up -d`.
 #[tauri::command]
-pub fn start_axon() -> Result<(), String> {
+pub fn start_axon(app: tauri::AppHandle) -> Result<(), String> {
+    let compose_path = resolve_compose_path(&app)?;
+
     let status = Command::new("docker")
-        .args(["compose", "-f", axon_compose_path().as_str(), "up", "-d"])
+        .args(["compose", "-f", &compose_path, "up", "-d"])
         .status()
         .map_err(|e| format!("Failed to run docker compose: {e}"))?;
 
@@ -69,9 +91,11 @@ pub fn start_axon() -> Result<(), String> {
 
 /// Stop the Axon stack via `docker compose down`.
 #[tauri::command]
-pub fn stop_axon() -> Result<(), String> {
+pub fn stop_axon(app: tauri::AppHandle) -> Result<(), String> {
+    let compose_path = resolve_compose_path(&app)?;
+
     let status = Command::new("docker")
-        .args(["compose", "-f", axon_compose_path().as_str(), "down"])
+        .args(["compose", "-f", &compose_path, "down"])
         .status()
         .map_err(|e| format!("Failed to run docker compose: {e}"))?;
 
@@ -101,13 +125,4 @@ pub fn get_axon_status() -> AxonStatus {
             AxonStatus { state, containers: names }
         }
     }
-}
-
-/// Returns the path to the bundled docker-compose.yml.
-/// Falls back to a default path for development.
-fn axon_compose_path() -> String {
-    // In production, the compose file is bundled next to the binary.
-    // In development, assume repo root relative to cwd.
-    std::env::var("AXON_COMPOSE_PATH")
-        .unwrap_or_else(|_| "docker-compose.yml".to_string())
 }

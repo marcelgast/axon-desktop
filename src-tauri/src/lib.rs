@@ -33,11 +33,13 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main_window(app),
+            // Call the same command functions used by the frontend so path
+            // resolution stays in one place (docker.rs).
             "start" => {
-                let _ = start_axon();
+                let _ = start_axon(app.clone());
             }
             "stop" => {
-                let _ = stop_axon();
+                let _ = stop_axon(app.clone());
             }
             "quit" => app.exit(0),
             _ => {}

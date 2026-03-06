@@ -24,6 +24,13 @@ pub struct AxonStatus {
     pub containers: Vec<String>,
 }
 
+#[derive(Serialize)]
+pub struct ContainerStat {
+    pub name: String,
+    pub cpu: String,
+    pub memory: String,
+}
+
 /// Check whether Docker is installed and the daemon is running.
 #[tauri::command]
 pub fn check_docker() -> DockerStatus {
@@ -216,6 +223,25 @@ fn list_compose_container_ids(compose_path: &str) -> Result<Vec<String>, String>
         .and_then(parse_compose_ps_output)
 }
 
+/// Like `list_compose_container_ids` but only returns IDs of containers
+/// whose status is `running`. Used by the stats command so that exited or
+/// restarting containers don't cause `docker stats` to stall or error out.
+fn list_running_compose_container_ids(compose_path: &str) -> Result<Vec<String>, String> {
+    Command::new("docker")
+        .args([
+            "compose",
+            "-f",
+            compose_path,
+            "ps",
+            "-q",
+            "--status",
+            "running",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to list running compose containers: {e}"))
+        .and_then(parse_compose_ps_output)
+}
+
 fn parse_compose_ps_output(output: std::process::Output) -> Result<Vec<String>, String> {
     parse_compose_ps_fields(
         output.status.success(),
@@ -354,6 +380,64 @@ pub fn get_axon_status(app: tauri::AppHandle) -> AxonStatus {
     }
 }
 
+/// Fetch live resource stats for all running Axon containers.
+///
+/// Queries only the containers belonging to the compose stack so the panel
+/// stays focused on Axon services. Returns an empty list if the stack is not
+/// running or Docker is unavailable.
+#[tauri::command]
+pub fn get_container_stats(app: tauri::AppHandle) -> Vec<ContainerStat> {
+    let compose_path = match resolve_compose_path(&app) {
+        Ok(path) => path,
+        Err(_) => return vec![],
+    };
+
+    // Only query running containers — exited/restarting containers cause
+    // `docker stats` to stall waiting for a container that never responds.
+    let ids = match list_running_compose_container_ids(&compose_path) {
+        Ok(ids) if !ids.is_empty() => ids,
+        _ => return vec![],
+    };
+
+    fetch_stats_for_containers(&ids)
+}
+
+fn fetch_stats_for_containers(ids: &[String]) -> Vec<ContainerStat> {
+    let format = "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}";
+    let mut args = vec!["stats", "--no-stream", "--format", format];
+
+    // Append container IDs so Docker only queries the compose stack.
+    let id_strs: Vec<&str> = ids.iter().map(String::as_str).collect();
+    args.extend(id_strs.iter().copied());
+
+    let output = match Command::new("docker").args(&args).output() {
+        Ok(o) => o,
+        Err(_) => return vec![],
+    };
+
+    // A non-zero exit means docker stats could not query at least one container
+    // (e.g. it exited between the ps and stats calls). Return empty rather than
+    // showing partial or misleading data.
+    if !output.status.success() {
+        return vec![];
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .filter_map(parse_stat_line)
+        .collect()
+}
+
+fn parse_stat_line(line: &str) -> Option<ContainerStat> {
+    let mut parts = line.splitn(3, '\t');
+    Some(ContainerStat {
+        name: parts.next()?.trim().to_string(),
+        cpu: parts.next()?.trim().to_string(),
+        memory: parts.next()?.trim().to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{parse_compose_ps_fields, AxonStatus, ComposeHealthState};
@@ -385,5 +469,20 @@ mod tests {
             ComposeHealthState::Healthy,
             ComposeHealthState::NotRunningOrErrored
         );
+    }
+
+    #[test]
+    fn parses_stat_line_into_struct() {
+        use super::parse_stat_line;
+        let stat = parse_stat_line("axon-master-1\t0.5%\t128MiB / 16GiB").unwrap();
+        assert_eq!(stat.name, "axon-master-1");
+        assert_eq!(stat.cpu, "0.5%");
+        assert_eq!(stat.memory, "128MiB / 16GiB");
+    }
+
+    #[test]
+    fn parse_stat_line_returns_none_for_empty_input() {
+        use super::parse_stat_line;
+        assert!(parse_stat_line("").is_none());
     }
 }

@@ -7,7 +7,9 @@ use tauri::{
     Manager,
 };
 
-use commands::{check_axon_health, check_docker, get_axon_status, start_axon, stop_axon};
+use commands::{
+    check_axon_health, check_docker, get_axon_status, get_container_stats, start_axon, stop_axon,
+};
 
 /// Build and attach the system tray icon with its context menu.
 fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -78,6 +80,7 @@ pub fn run() {
             stop_axon,
             get_axon_status,
             check_axon_health,
+            get_container_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Axon Desktop");
